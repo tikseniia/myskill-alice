@@ -90,9 +90,9 @@ def handle_dialog(req, res):
     foundation = cookie['foundation']
 
     if foundation:
-        if origin = 'назад': #возвращаемся назад
+        if origin == 'назад': #возвращаемся назад
             get_problem_cart('parent', user_id)
-        elif origin = 'другие фонды': #подбираем другие рандомные фонды
+        elif origin == 'другие фонды': #подбираем другие рандомные фонды
             get_random_list(current, user_id, parent)
         else:
             #ищем в базе фондов
@@ -128,7 +128,7 @@ def get_problem_cart(step, user_id):
         res['response']['buttons'] = get_suggests(user_id, ['Да', 'Нет'], False) #no subcategories ask about interest in foundations
 
 #возвращает список из 3 рандомных фондов
-get_random_list(current, user_id, parent):
+def get_random_list(current, user_id, parent):
     item = sessionStorage[user_id][current]
     data = open_file("parsed-new.txt")
     filtered = [d for d in data if d['category2'].lower() == item['name'].lower()]
