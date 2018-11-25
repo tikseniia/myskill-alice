@@ -91,9 +91,9 @@ def handle_dialog(req, res):
 
     if foundation:
         if origin == 'назад': #возвращаемся назад
-            get_problem_cart('parent', user_id)
+            get_problem_cart('parent', user_id, res)
         elif origin == 'другие фонды': #подбираем другие рандомные фонды
-            get_random_list(current, user_id, parent)
+            get_random_list(current, user_id, parent, res)
         else:
             #ищем в базе фондов
             data = open_file("parsed-new.txt")
@@ -105,18 +105,18 @@ def handle_dialog(req, res):
     else:
         # ответ "да" - пользователь хочет список фондов
         if origin == 'да':
-            get_random_list(current, user_id, parent)
+            get_random_list(current, user_id, parent, res)
         # ответ "нет" - пользователь хочет вернуться на шаг назад
         elif origin == 'нет':
-            get_problem_cart('parent', user_id)
+            get_problem_cart('parent', user_id, res)
         elif origin == sessionStorage[user_id][current]['name'].lower():
-            get_problem_cart('current', user_id)
+            get_problem_cart('current', user_id, res)
         else:
             res['response']['text'] = 'Я не понимаю:с Давайте начнем сначала?'
             res['response']['buttons'] = get_suggests(user_id, sessionStorage[user_id]['buttons_level_1']['btns'], False)
 
 #возвращает карточку с проблемой и набор кнопок-проблем или задает вопрос "Перейти к фондам?"
-def get_problem_cart(step, user_id):
+def get_problem_cart(step, user_id, res):
     current = cookie[step]
     item = sessionStorage[user_id][current]
 
@@ -128,7 +128,7 @@ def get_problem_cart(step, user_id):
         res['response']['buttons'] = get_suggests(user_id, ['Да', 'Нет'], False) #no subcategories ask about interest in foundations
 
 #возвращает список из 3 рандомных фондов
-def get_random_list(current, user_id, parent):
+def get_random_list(current, user_id, parent, res):
     item = sessionStorage[user_id][current]
     data = open_file("parsed-new.txt")
     filtered = [d for d in data if d['category2'].lower() == item['name'].lower()]
