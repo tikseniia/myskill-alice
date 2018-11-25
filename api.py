@@ -50,6 +50,7 @@ def handle_dialog(req, res):
         # Это новый пользователь.
         # Инициализируем сессию и поприветствуем его.
 
+        #все кнопки
         sessionStorage[user_id] = {
         'people': {'name': 'Люди', 'parent': 'buttons_level_1', 'text': 'Люди — раздел, где собраны… Выберите категорию:', 'btns': ['Детство', 'Медицина','Бездомные', 'Домашнее насилие', 'Зависимые','Бывшие заключенные']},
         	'children': {'name': 'Детство', 'parent': 'people', 'text': 'Проблема детства...', 'btns': []},
@@ -74,102 +75,99 @@ def handle_dialog(req, res):
         	'naturesafe': {'name': 'Сохранение природы', 'parent': 'nature', 'text': 'Проблемы сохранения природы...', 'btns': []},
         'buttons_level_1': {'name': 'initial', 'parent': 'buttons_level_1', 'btns': ["Люди", "Общество","Природа"]}
         }
+
+        change_cookie('', 'buttons_level_1', false)
         # Приветственное сообщение!
         res['response']['text'] = 'Это путеводитель по благотворительным фондам России, где вы можете узнать больше о социальных проблемах и выбрать фонд, которому хотите помочь. Что вам интересно?'
         res['response']['tts'] = 'Это путеводитель по благотворительным фондам России, где вы можете узнать больше о социальных проблемах и выбрать фонд, которому хотите помочь. Что вам интересно?'
-        res['response']['buttons'] = get_suggests(user_id, sessionStorage[user_id]['buttons_level_1']['btns'])
+        res['response']['buttons'] = get_suggests(user_id, sessionStorage[user_id]['buttons_level_1']['btns'], False)
         return
 
-    try:
-    	with open("cookie.txt") as file:
-    		cookie = json.loads(file.read())
-    except:
-    	cookie = {'foundation': False}
+    origin = req['request']['original_utterance'].lower()
+    cookie = open_file("cookie.txt")
+    current = cookie['current']
+    parent = cookie['parent']
+    foundation = cookie['foundation']
 
-    if cookie['foundation']:
+    if foundation:
+        if origin = 'назад': #возвращаемся назад
+            get_problem_cart('parent', user_id)
+        elif origin = 'другие фонды': #подбираем другие рандомные фонды
+            get_random_list(current, user_id, parent)
+        else:
+            #ищем в базе фондов
+            data = open_file("parsed-new.txt")
+            filtered = [d for d in data if d['name'].lower() == origin]
 
-    	with open("parsed-new.txt") as file:
-	    	data = json.loads(file.read())
-
-	    	filtered = [d for d in data if d['name'].lower() == req['request']['original_utterance'].lower()]
-#Рассказ о фонде и ссылка на сайт
-	    	res['response']['buttons'] = [{'title': 'Перейти на сайт', 'hide': True, 'url': 'https://nuzhnapomosh.ru'+filtered[0]['url']}]
-	    	res['response']['text'] = filtered[0]['Рассказ о фонде']
+            #Рассказ о фонде и ссылка на сайт
+    	    res['response']['buttons'] = get_suggests(user_id, [['Перейти на сайт', 'https://nuzhnapomosh.ru'+filtered[0]['url']], ['Другие фонды', ''], ['Назад', '']], True)
+    	    res['response']['text'] = filtered[0]['Рассказ о фонде']
     else:
+        # ответ "да" - пользователь хочет список фондов
+        if origin == 'да':
+            get_random_list(current, user_id, parent)
+        # ответ "нет" - пользователь хочет вернуться на шаг назад
+        elif origin == 'нет':
+            get_problem_cart('parent', user_id)
+        elif origin == sessionStorage[user_id][current]['name'].lower():
+            get_problem_cart('current', user_id)
+        else:
+            res['response']['text'] = 'Я не понимаю:с Давайте начнем сначала?'
+            res['response']['buttons'] = get_suggests(user_id, sessionStorage[user_id]['buttons_level_1']['btns'], False)
 
-	    # Обрабатываем ответ пользователя.
-	    for i in sessionStorage[user_id].keys():
-	    	if req['request']['original_utterance'].lower() == sessionStorage[user_id][i]['name'].lower():
-	        	res['response']['text'] = sessionStorage[user_id][i]['text']
+#возвращает карточку с проблемой и набор кнопок-проблем или задает вопрос "Перейти к фондам?"
+def get_problem_cart(step, user_id):
+    current = cookie[step]
+    item = sessionStorage[user_id][current]
 
-	        	if len(sessionStorage[user_id][i]['btns']) != 0:
-	        		res['response']['buttons'] = get_suggests(user_id, sessionStorage[user_id][i]['btns'])
-	        	else:
-	        		f= open("parent.txt","w+")
-	        		f.write(sessionStorage[user_id][i]['parent'])
-	        		f.close()
+    change_cookie(item['parent'], current, 'false')
+    res['response']['text'] = item['text']
+    if len(btns) != 0:
+        res['response']['buttons'] = get_suggests(user_id, item['btns'], False)
+    else:
+        res['response']['buttons'] = get_suggests(user_id, ['Да', 'Нет'], False) #no subcategories ask about interest in foundations
 
-	        		f= open("current.txt","w+")
-	        		f.write(i)
-	        		f.close()
+#возвращает список из 3 рандомных фондов
+get_random_list(current, user_id, parent):
+    item = sessionStorage[user_id][current]
+    data = open_file("parsed-new.txt")
+    filtered = [d for d in data if d['category2'].lower() == item['name'].lower()]
+    if len(filtered) > 2:
+        r = random.sample(filtered, 3)
+    else:
+        r = random.sample(filtered, len(filtered))
 
-	        		res['response']['buttons'] = get_suggests(user_id, ['yes', 'no'])
-	        elif req['request']['original_utterance'].lower() == 'yes':
-	        	f=open("current.txt", "r")
-	        	step = f.read()
+    change_cookie(parent, current, 'true') #foundation is true - next step in founds db
 
-	        	with open("parsed-new.txt") as file:
-	    			data = json.loads(file.read())
+    res['response']['text'] = 'Всего в России есть '+str(len(filtered))+' организаций в этой категории. Я рекомендую присмотреться к трем из них: '+[d['name'] for d in r]+'. Выберите один из них.'
+    res['response']['buttons'] = get_suggests(user_id, [d['name'] for d in r], False)
 
-	        	filtered = [d for d in data if d['category2'].lower() == sessionStorage[user_id][step]['name'].lower()]
-	        	if len(filtered) > 2:
-	        		r = random.sample(filtered, 3)
-	        	else:
-	        		r = random.sample(filtered, len(filtered))
 
-	        	f = open("cookie.txt","w+")
-	        	f.write('{"foundation": true}')
-	        	f.close()
-
-	        	res['response']['text'] = str(len(filtered))
-	        	res['response']['buttons'] = get_suggests(user_id, [d['name'] for d in r])
-
-	        elif req['request']['original_utterance'].lower() == 'no':
-	        	f=open("parent.txt", "r")
-	        	step = f.read()
-	        	if len(sessionStorage[user_id][step]['btns']) != 0:
-	        		res['response']['text'] = sessionStorage[user_id][step]['text']
-	        		res['response']['buttons'] = get_suggests(user_id, sessionStorage[user_id][step]['btns'])
-	        	else:
-	        		res['response']['buttons'] = get_suggests(user_id, ['yes', 'no'])
-
-    # Если нет, то убеждаем его купить слона!
-    #res['response']['text'] = 'Слыш "%s", а не пошел бы ты?' % (
-     #   req['request']['original_utterance']
-    #)
-    #res['response']['buttons'] = get_suggests(user_id)
-
-# Функция возвращает две подсказки для ответа.
-def get_suggests(user_id, btns):
+# Функция возвращает кнопки
+def get_suggests(user_id, btns, urls):
     session = sessionStorage[user_id]
 
-    # Выбираем две первые подсказки из массива.
-    suggests = [
-        {'title': suggest, 'hide': True}
-        for suggest in btns[:len(btns)]
-    ]
+    if urls:
+        suggests = [
+            {'title': suggest[0], 'hide': True, 'url': suggest[1]}
+            for suggest in btns[:len(btns)]
+        ]
+        return suggests
+    else:
+        suggests = [
+            {'title': suggest, 'hide': True}
+            for suggest in btns[:len(btns)]
+        ]
+        return suggests
 
-    # Убираем первую подсказку, чтобы подсказки менялись каждый раз.
-    #session['buttons_level_1'] = session['buttons_level_1'][1:]
-    #sessionStorage[user_id] = session
 
-    # Если осталась только одна подсказка, предлагаем подсказку
-    # со ссылкой на Яндекс.Маркет.
-    #if len(suggests) < 2:
-     #   suggests.append({
-     #       "title": "Вам сюда",
-     #       "url": "http://natribu.org/",
-     #       "hide": True
-      #  })
+def change_cookie(parent, current, foundation):
+    f = open("cookie.txt","w+")
+    f.write('{"parent": "'+parent+'", "current": "'+current+'", "foundation": '+foundation+'}')
+    f.close()
 
-    return suggests
+
+def open_file(path):
+    with open(path) as file:
+        data = json.loads(file.read())
+        return data
